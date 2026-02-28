@@ -1,1 +1,243 @@
+/*
+Rancang Bangun Sistem Kontrol Suhu dan Kelembapan
+Anubias sp Metode Emersed
+Menggunakan Logika Fuzzy Mamdani
+ESP32 + EFLL Library
+*/
 
+#include <Fuzzy.h>
+#include "DHT.h"
+
+
+// ================= PIN =================
+
+#define DHTPIN 4
+#define DHTTYPE DHT22
+
+#define FAN_PIN 18
+#define MIST_PIN 19
+
+
+DHT dht(DHTPIN, DHTTYPE);
+
+Fuzzy *fuzzy = new Fuzzy();
+
+
+// ================= SETUP =================
+
+void setup() {
+
+Serial.begin(115200);
+
+dht.begin();
+
+pinMode(FAN_PIN,OUTPUT);
+pinMode(MIST_PIN,OUTPUT);
+
+
+
+/* ================= INPUT SUHU ================= */
+
+FuzzyInput *temperature = new FuzzyInput(1);
+
+FuzzySet *dingin = new FuzzySet(0,20,20,22);
+FuzzySet *normal = new FuzzySet(22,25,25,28);
+FuzzySet *panas = new FuzzySet(28,30,40,40);
+
+temperature->addFuzzySet(dingin);
+temperature->addFuzzySet(normal);
+temperature->addFuzzySet(panas);
+
+fuzzy->addFuzzyInput(temperature);
+
+
+
+/* ================= INPUT KELEMBAPAN ================= */
+
+FuzzyInput *humidity = new FuzzyInput(2);
+
+FuzzySet *kering = new FuzzySet(0,70,70,80);
+FuzzySet *nyaman = new FuzzySet(80,85,85,90);
+FuzzySet *tinggi = new FuzzySet(90,95,100,100);
+
+humidity->addFuzzySet(kering);
+humidity->addFuzzySet(nyaman);
+humidity->addFuzzySet(tinggi);
+
+fuzzy->addFuzzyInput(humidity);
+
+
+
+/* ================= OUTPUT KIPAS ================= */
+
+FuzzyOutput *fan = new FuzzyOutput(1);
+
+FuzzySet *fanLow = new FuzzySet(0,40,40,80);
+FuzzySet *fanMed = new FuzzySet(70,120,120,180);
+FuzzySet *fanHigh = new FuzzySet(170,220,255,255);
+
+fan->addFuzzySet(fanLow);
+fan->addFuzzySet(fanMed);
+fan->addFuzzySet(fanHigh);
+
+fuzzy->addFuzzyOutput(fan);
+
+
+
+/* ================= OUTPUT MIST ================= */
+
+FuzzyOutput *mist = new FuzzyOutput(2);
+
+FuzzySet *mistOff = new FuzzySet(0,0,0,50);
+FuzzySet *mistLow = new FuzzySet(40,80,80,120);
+FuzzySet *mistHigh = new FuzzySet(110,180,255,255);
+
+mist->addFuzzySet(mistOff);
+mist->addFuzzySet(mistLow);
+mist->addFuzzySet(mistHigh);
+
+fuzzy->addFuzzyOutput(mist);
+
+
+
+/* ================= RULE BASE (9 RULE) ================= */
+
+
+// 1
+FuzzyRuleAntecedent *r1a = new FuzzyRuleAntecedent();
+r1a->joinWithAND(dingin,kering);
+
+FuzzyRuleConsequent *r1c = new FuzzyRuleConsequent();
+r1c->addOutput(fanLow);
+r1c->addOutput(mistOff);
+
+fuzzy->addFuzzyRule(new FuzzyRule(1,r1a,r1c));
+
+
+// 2
+FuzzyRuleAntecedent *r2a = new FuzzyRuleAntecedent();
+r2a->joinWithAND(dingin,nyaman);
+
+FuzzyRuleConsequent *r2c = new FuzzyRuleConsequent();
+r2c->addOutput(fanLow);
+r2c->addOutput(mistLow);
+
+fuzzy->addFuzzyRule(new FuzzyRule(2,r2a,r2c));
+
+
+// 3
+FuzzyRuleAntecedent *r3a = new FuzzyRuleAntecedent();
+r3a->joinWithAND(dingin,tinggi);
+
+FuzzyRuleConsequent *r3c = new FuzzyRuleConsequent();
+r3c->addOutput(fanLow);
+r3c->addOutput(mistHigh);
+
+fuzzy->addFuzzyRule(new FuzzyRule(3,r3a,r3c));
+
+
+// 4
+FuzzyRuleAntecedent *r4a = new FuzzyRuleAntecedent();
+r4a->joinWithAND(normal,kering);
+
+FuzzyRuleConsequent *r4c = new FuzzyRuleConsequent();
+r4c->addOutput(fanMed);
+r4c->addOutput(mistLow);
+
+fuzzy->addFuzzyRule(new FuzzyRule(4,r4a,r4c));
+
+
+// 5
+FuzzyRuleAntecedent *r5a = new FuzzyRuleAntecedent();
+r5a->joinWithAND(normal,nyaman);
+
+FuzzyRuleConsequent *r5c = new FuzzyRuleConsequent();
+r5c->addOutput(fanMed);
+r5c->addOutput(mistLow);
+
+fuzzy->addFuzzyRule(new FuzzyRule(5,r5a,r5c));
+
+
+// 6
+FuzzyRuleAntecedent *r6a = new FuzzyRuleAntecedent();
+r6a->joinWithAND(normal,tinggi);
+
+FuzzyRuleConsequent *r6c = new FuzzyRuleConsequent();
+r6c->addOutput(fanMed);
+r6c->addOutput(mistHigh);
+
+fuzzy->addFuzzyRule(new FuzzyRule(6,r6a,r6c));
+
+
+// 7
+FuzzyRuleAntecedent *r7a = new FuzzyRuleAntecedent();
+r7a->joinWithAND(panas,kering);
+
+FuzzyRuleConsequent *r7c = new FuzzyRuleConsequent();
+r7c->addOutput(fanHigh);
+r7c->addOutput(mistOff);
+
+fuzzy->addFuzzyRule(new FuzzyRule(7,r7a,r7c));
+
+
+// 8
+FuzzyRuleAntecedent *r8a = new FuzzyRuleAntecedent();
+r8a->joinWithAND(panas,nyaman);
+
+FuzzyRuleConsequent *r8c = new FuzzyRuleConsequent();
+r8c->addOutput(fanHigh);
+r8c->addOutput(mistLow);
+
+fuzzy->addFuzzyRule(new FuzzyRule(8,r8a,r8c));
+
+
+// 9
+FuzzyRuleAntecedent *r9a = new FuzzyRuleAntecedent();
+r9a->joinWithAND(panas,tinggi);
+
+FuzzyRuleConsequent *r9c = new FuzzyRuleConsequent();
+r9c->addOutput(fanHigh);
+r9c->addOutput(mistHigh);
+
+fuzzy->addFuzzyRule(new FuzzyRule(9,r9a,r9c));
+
+}
+
+
+
+void loop(){
+
+float suhu = dht.readTemperature();
+float hum = dht.readHumidity();
+
+
+fuzzy->setInput(1,suhu);
+fuzzy->setInput(2,hum);
+
+fuzzy->fuzzify();
+
+
+float fanPWM = fuzzy->defuzzify(1);
+float mistPWM = fuzzy->defuzzify(2);
+
+
+analogWrite(FAN_PIN,fanPWM);
+analogWrite(MIST_PIN,mistPWM);
+
+
+Serial.print("Suhu = ");
+Serial.println(suhu);
+
+Serial.print("Kelembapan = ");
+Serial.println(hum);
+
+Serial.print("Fan PWM = ");
+Serial.println(fanPWM);
+
+Serial.print("Mist PWM = ");
+Serial.println(mistPWM);
+
+
+delay(2000);
+
+}
