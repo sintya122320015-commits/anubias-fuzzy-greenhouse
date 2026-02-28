@@ -35,7 +35,7 @@ Februari 2026 – Juni 2026
 
 ## Penulis
 
-Nama: (Isi nama kamu)
+Nama: Sintya S. Simanjuntak_122320015
 
 Program Studi Teknik Fisika  
 Institut Teknologi Sumatera
